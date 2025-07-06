@@ -5,22 +5,40 @@ typedef struct {
     int canParseHeader;
     int headerLevel;
     int openedTag;
+    DynamicString str;
+    struct ParserState *subState;
 } ParserState;
 
 static int isASCIICharacter(char ch);
 
-void resetParserLineState(ParserState * parserState) {
+void resetParserLineState(ParserState *parserState) {
     parserState->canParseHeader = 1;
     parserState->headerLevel = 0;
     parserState->openedTag = 0;
 }
 
+void resetParserStr(ParserState *parserState) {
+    freeDynStr(&parserState->str);
+
+    parserState->str = createDynStr("", 0);
+}
+
 ParserState createParserState() {
     ParserState parserState;
+
+    parserState.str = createDynStr("", 0);
 
     resetParserLineState(&parserState);
 
     return parserState;
+}
+
+int appendStringToParser(ParserState *parserState, char *text, size_t len) {
+    return appendDynStr(&parserState->str, text, len);
+}
+
+int appendCharToParser(ParserState *parserState, char ch) {
+    return appendDynChar(&parserState->str, ch);
 }
 
 void increaseHeaderLevel(ParserState * parserState) {
@@ -29,72 +47,72 @@ void increaseHeaderLevel(ParserState * parserState) {
     }
 }
 
-int prependOpeningTag(ParserState * parserState, DynamicString * resultDynStr) {
+int prependOpeningTag(ParserState *parserState) {
     parserState->openedTag = 1;
 
     if (parserState->headerLevel == 0) {
-        return appendDynStr(resultDynStr, "<p>", 3);
+        return appendStringToParser(parserState, "<p>", 3);
     }
 
     if (parserState->headerLevel == 1) {
-        return appendDynStr(resultDynStr, "<h1>", 4);
+        return appendStringToParser(parserState, "<h1>", 4);
     }
 
     if (parserState->headerLevel == 2) {
-        return appendDynStr(resultDynStr, "<h2>", 4);
+        return appendStringToParser(parserState, "<h2>", 4);
     }
 
     if (parserState->headerLevel == 3) {
-        return appendDynStr(resultDynStr, "<h3>", 4);
+        return appendStringToParser(parserState, "<h3>", 4);
     }
 
     if (parserState->headerLevel == 4) {
-        return appendDynStr(resultDynStr, "<h4>", 4);
+        return appendStringToParser(parserState, "<h4>", 4);
     }
 
     if (parserState->headerLevel == 5) {
-        return appendDynStr(resultDynStr, "<h5>", 4);
+        return appendStringToParser(parserState, "<h5>", 4);
     }
 
     if (parserState->headerLevel == 6) {
-        return appendDynStr(resultDynStr, "<h6>", 4);
+        return appendStringToParser(parserState, "<h6>", 4);
     }
 
     // should never happen
     return 0;
 }
 
-int appendOpeningTag(ParserState * parserState, DynamicString * resultDynStr) {
+int appendOpeningTag(ParserState *parserState) {
     if (parserState->openedTag == 0) {
         return 1;
     }
 
     if (parserState->headerLevel == 0) {
-        return appendDynStr(resultDynStr, "</p>", 4);
+        return appendStringToParser(parserState, "</p>", 4);
     }
 
     if (parserState->headerLevel == 1) {
-        return appendDynStr(resultDynStr, "</h1>", 5);
+        return appendStringToParser(parserState, "</h1>", 5);
     }
 
     if (parserState->headerLevel == 2) {
-        return appendDynStr(resultDynStr, "</h2>", 5);
+        return appendStringToParser(parserState, "</h2>", 5);
     }
 
     if (parserState->headerLevel == 3) {
-        return appendDynStr(resultDynStr, "</h3>", 5);
+        return appendStringToParser(parserState, "</h3>", 5);
     }
 
     if (parserState->headerLevel == 4) {
-        return appendDynStr(resultDynStr, "</h4>", 5);
+        return appendStringToParser(parserState, "</h4>", 5);
     }
 
     if (parserState->headerLevel == 5) {
-        return appendDynStr(resultDynStr, "</h5>", 5);
+        return appendStringToParser(parserState, "</h5>", 5);
     }
 
     if (parserState->headerLevel == 6) {
-        return appendDynStr(resultDynStr, "</h6>", 5);
+        return appendStringToParser(parserState, "</h6>", 5);
     }
 
     // should never happen
@@ -102,7 +120,7 @@ int appendOpeningTag(ParserState * parserState, DynamicString * resultDynStr) {
 }
 
 
-void parseLine(char * line, size_t len, ParserState * parserState, DynamicString * resultDynStr) {
+void parseLine(char *line, size_t len, ParserState * parserState, DynamicString *resultDynStr) {
     while (*line) {
         int isASCII = isASCIICharacter(*line);
         if (isASCII) {
@@ -112,6 +130,12 @@ void parseLine(char * line, size_t len, ParserState * parserState, DynamicString
                     line++;
                     continue;
                 }
+            }
+
+            if (*line == '_') {
+                // we need to create a substructure and save all characters inside it
+                // the reason is that it might not be closed
+                // TODO: handle that
             }
 
             // we ignore newlines for now
@@ -125,31 +149,31 @@ void parseLine(char * line, size_t len, ParserState * parserState, DynamicString
             parserState->canParseHeader = 0;
 
             if (*line == ' ') {
-                prependOpeningTag(parserState, resultDynStr);
+                prependOpeningTag(parserState);
             } else {
                 int currentHeaderLevel = parserState->headerLevel;
                 parserState->headerLevel = 0;
-                prependOpeningTag(parserState, resultDynStr);
+                prependOpeningTag(parserState);
 
                 if (currentHeaderLevel != 0) {
                     for (int i = 0; i < currentHeaderLevel; i++) {
-                        appendDynChar(resultDynStr, '#');
+                        appendCharToParser(parserState, '#');
                     }
                 }
 
-                appendDynChar(resultDynStr, *line);    
+                appendCharToParser(parserState, *line);
             }
         } else {
-            appendDynChar(resultDynStr, *line);
+            appendCharToParser(parserState, *line);
         }
 
         line++;
     }
 
-    appendOpeningTag(parserState, resultDynStr);
+    appendOpeningTag(parserState);
 }
 
-DynamicString parseMarkdown(FILE * file) {
+DynamicString parseMarkdown(FILE *file) {
     char * line = NULL;
     size_t len = 0;
     ssize_t nread;
@@ -159,6 +183,10 @@ DynamicString parseMarkdown(FILE * file) {
 
     while ((nread = getline(&line, &len, file)) != -1) {
         parseLine(line, len, &parserState, &resultDynStr);
+
+        appendDynStr(&resultDynStr, parserState.str.str, parserState.str.len);
+
+        resetParserStr(&parserState);
         resetParserLineState(&parserState);
     }
 
