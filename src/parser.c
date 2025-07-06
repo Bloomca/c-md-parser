@@ -1,38 +1,143 @@
 #include <stdio.h>
+#include <dynamicString.h>
 
-void parseMarkdown(FILE * file) {
+typedef struct {
+    int canParseHeader;
+    int headerLevel;
+} ParserState;
+
+ParserState createParserState() {
+    ParserState parserState;
+
+    resetParserLineState(&parserState);
+}
+
+void resetParserLineState(ParserState * parserState) {
+    parserState->canParseHeader = 1;
+    parserState->headerLevel = 0;
+}
+
+void increaseHeaderLevel(ParserState * parserState) {
+    if (parserState->headerLevel < 6) {
+        parserState->headerLevel++;
+    }
+}
+
+DynamicString parseMarkdown(FILE * file) {
     char * line = NULL;
     size_t len = 0;
     ssize_t nread;
 
+    ParserState parserState = createParserState();
+    DynamicString resultDynStr = createDynStr("", 0);
+
     while ((nread = getline(&line, &len, file)) != -1) {
-        parseLine(line);
+        parseLine(line, len, &parserState, &resultDynStr);
     }
+
+    return resultDynStr;
 }
 
-char * parseLine(char * line) {
-    int firstElement = 1;
-    int headerLevel = 0;
+int prependOpeningTag(ParserState * parserState, DynamicString * resultDynStr) {
+    if (parserState->headerLevel == 0) {
+        return appendDynStr(resultDynStr, "<p>", 3);
+    }
+
+    if (parserState->headerLevel == 1) {
+        return appendDynStr(resultDynStr, "<h1>", 4);
+    }
+
+    if (parserState->headerLevel == 2) {
+        return appendDynStr(resultDynStr, "<h2>", 4);
+    }
+
+    if (parserState->headerLevel == 3) {
+        return appendDynStr(resultDynStr, "<h3>", 4);
+    }
+
+    if (parserState->headerLevel == 4) {
+        return appendDynStr(resultDynStr, "<h4>", 4);
+    }
+
+    if (parserState->headerLevel == 5) {
+        return appendDynStr(resultDynStr, "<h5>", 4);
+    }
+
+    if (parserState->headerLevel == 6) {
+        return appendDynStr(resultDynStr, "<h6>", 4);
+    }
+
+    // should never happen
+    return 0;
+}
+
+void appendOpeningTag(ParserState * parserState, DynamicString * resultDynStr) {
+    if (parserState->headerLevel == 0) {
+        return appendDynStr(resultDynStr, "</p>", 4);
+    }
+
+    if (parserState->headerLevel == 1) {
+        return appendDynStr(resultDynStr, "</h1>", 5);
+    }
+
+    if (parserState->headerLevel == 2) {
+        return appendDynStr(resultDynStr, "</h2>", 5);
+    }
+
+    if (parserState->headerLevel == 3) {
+        return appendDynStr(resultDynStr, "</h3>", 5);
+    }
+
+    if (parserState->headerLevel == 4) {
+        return appendDynStr(resultDynStr, "</h4>", 5);
+    }
+
+    if (parserState->headerLevel == 5) {
+        return appendDynStr(resultDynStr, "</h5>", 5);
+    }
+
+    if (parserState->headerLevel == 6) {
+        return appendDynStr(resultDynStr, "</h6>", 5);
+    }
+
+    // should never happen
+    return 0;
+}
+
+
+void parseLine(char * line, size_t len, ParserState * parserState, DynamicString * resultDynStr) {
     while (*line) {
-        // 0x80 is 10000000
-        // Unicode continuation bits look like this:
-        // 110xxxxx 10xxxxxx = 2-byte character
-        // 1110xxxx 10xxxxxx 10xxxxxx = 3-byte character
-        // 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx = 4-byte character
-        //
-        // Finally, 1-byte characters look like 0xxxxxxx
-        // All special markdown characters are 1 byte
-        int isASCII = (*line & 0x80) == 0;
+        int isASCII = isASCIICharacter(*line);
         if (isASCII) {
-            if (firstElement) {
-                if (*line == "#") {
-                    headerLevel++;
-                } else {
-                    firstElement = 0;
+            if (*line == '#') {
+                if (parserState->canParseHeader) {
+                    increaseHeaderLevel(parserState);
+                    continue;
                 }
             }
         }
 
+        if (parserState->canParseHeader) {
+            parserState->canParseHeader = 0;
+            prependOpeningTag(parserState, resultDynStr);
+        }
+
+        appendDynChar(resultDynStr, *line);
+
         line++;
     }
+
+    appendOpeningTag(parserState, resultDynStr);
+}
+
+// Unicode continuation bits look like this:
+// 110xxxxx 10xxxxxx = 2-byte character
+// 1110xxxx 10xxxxxx 10xxxxxx = 3-byte character
+// 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx = 4-byte character
+//
+// Finally, 1-byte characters look like 0xxxxxxx
+// All special markdown characters are 1 byte
+int isASCIICharacter(char ch) {
+    // 0x80 is 10000000
+    return ch & 0x80 == 0;
 }
