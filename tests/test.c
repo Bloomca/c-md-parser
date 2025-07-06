@@ -71,11 +71,24 @@ static void test_correctMultilineSupport(void **state) {
     teardownFile(fd, &dynStr);
 }
 
+static void test_correctItalicSupport(void **state) {
+    (void) state; /* unused parameter */
+
+    FILE * fd = setupFile("some text _with italics_ and more");
+
+    DynamicString dynStr = parseMarkdown(fd);
+
+    assert_string_equal(dynStr.str, "<p>some text <i>with italics</i> and more</p>");
+
+    teardownFile(fd, &dynStr);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_correctParagraphWrapperTag),
         cmocka_unit_test(test_correctHeaderWrapperTag),
         cmocka_unit_test(test_correctMultilineSupport),
+        cmocka_unit_test(test_correctItalicSupport),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);
