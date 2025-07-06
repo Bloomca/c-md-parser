@@ -1,11 +1,20 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <dynamicString.h>
 
-typedef struct {
+typedef enum {
+    NONE,
+    ITALIC,
+    BOLD,
+} Tag;
+
+typedef struct ParserState {
     int canParseHeader;
     int headerLevel;
     int openedTag;
+    Tag tag;
     DynamicString str;
+    // subState is always a pointer on heap, you need to free it manually
     struct ParserState *subState;
 } ParserState;
 
@@ -23,14 +32,77 @@ void resetParserStr(ParserState *parserState) {
     parserState->str = createDynStr("", 0);
 }
 
-ParserState createParserState() {
+ParserState createParserState(Tag tag) {
     ParserState parserState;
 
+    parserState.tag = tag;
     parserState.str = createDynStr("", 0);
+    parserState.subState = NULL;
 
     resetParserLineState(&parserState);
 
     return parserState;
+}
+
+ParserState * getNestedState(ParserState *parserState) {
+    ParserState *nestedState = parserState;
+
+    for (;;) {
+        if (nestedState->subState == NULL) {
+            break;
+        }
+
+        nestedState = nestedState->subState;
+    }
+
+    return nestedState;
+}
+
+void createSubState(ParserState *parserState, Tag tag) {
+    ParserState *nestedState = getNestedState(parserState);
+
+    ParserState *subState = malloc(sizeof(ParserState));
+    *subState = createParserState(tag);
+    nestedState->subState = subState;
+}
+
+void concludeSubState(ParserState *parserState, Tag tag) {
+    // TODO: conclude all nested substates as just regular text
+    // without wrapping it into tags
+
+    // 1. Find substate for the tag
+    // 2. Find substate/state for the parent of that tag
+    // 3. Add substate text to the parent text, including
+    // opening and closing tags
+
+    ParserState *parentState = parserState;
+
+    for (;;) {
+        if (parentState->subState == NULL) {
+            return;
+        }
+
+        if (parentState->subState->tag == tag) {
+            break;
+        }
+
+        parentState = parentState->subState;
+    }
+
+    if (tag == ITALIC) {
+        appendDynStr(&parentState->str, "<i>", 3);
+    }
+
+    appendDynStr(&parentState->str, parentState->subState->str.str, parentState->subState->str.len);
+    
+    if (tag == ITALIC) {
+        appendDynStr(&parentState->str, "</i>", 4);
+    }
+
+    // cleanup
+    freeDynStr(&parentState->subState->str);
+    free(parentState->subState);
+    parentState->subState = NULL;
 }
 
 int appendStringToParser(ParserState *parserState, char *text, size_t len) {
@@ -38,7 +110,8 @@ int appendStringToParser(ParserState *parserState, char *text, size_t len) {
 }
 
 int appendCharToParser(ParserState *parserState, char ch) {
-    return appendDynChar(&parserState->str, ch);
+    ParserState *nestedState = getNestedState(parserState);
+    return appendDynChar(&nestedState->str, ch);
 }
 
 void increaseHeaderLevel(ParserState * parserState) {
@@ -120,7 +193,7 @@ int appendOpeningTag(ParserState *parserState) {
 }
 
 
-void parseLine(char *line, size_t len, ParserState * parserState, DynamicString *resultDynStr) {
+void parseLine(char *line, size_t len, ParserState *parserState, DynamicString *resultDynStr) {
     while (*line) {
         int isASCII = isASCIICharacter(*line);
         if (isASCII) {
@@ -133,9 +206,20 @@ void parseLine(char *line, size_t len, ParserState * parserState, DynamicString 
             }
 
             if (*line == '_') {
-                // we need to create a substructure and save all characters inside it
-                // the reason is that it might not be closed
-                // TODO: handle that
+                ParserState *nestedState = getNestedState(parserState);
+
+                if (nestedState->tag == ITALIC) {
+                    concludeSubState(parserState, ITALIC);
+                    line++;
+                    continue;
+                } else {
+                    // we need to create a substructure and save all characters inside it
+                    // the reason is that it might not be closed, so we can't add the tag
+                    // immediately
+                    createSubState(parserState, ITALIC);
+                    line++;
+                    continue;
+                }
             }
 
             // we ignore newlines for now
@@ -178,7 +262,8 @@ DynamicString parseMarkdown(FILE *file) {
     size_t len = 0;
     ssize_t nread;
 
-    ParserState parserState = createParserState();
+    Tag noTag = NONE;
+    ParserState parserState = createParserState(noTag);
     DynamicString resultDynStr = createDynStr("", 0);
 
     while ((nread = getline(&line, &len, file)) != -1) {
