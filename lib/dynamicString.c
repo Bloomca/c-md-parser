@@ -1,8 +1,11 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <dynamicString.h>
 
 static size_t MIN_CAPACITY = 64;
+
+static int ensureCapacity(DynamicString * dynStr, size_t neededCapacity);
 
 DynamicString createDynStr(const char * initialStr, size_t len) {
     DynamicString dynStr;
@@ -40,7 +43,7 @@ int appendDynStr(DynamicString * dynStr, const char * newStr, size_t len) {
     return 1;
 }
 
-int appendDynCh(DynamicString * dynStr, const char newCh) {
+int appendDynChar(DynamicString * dynStr, const char newCh) {
     int newCapacity = dynStr->len + 2;
     if (!ensureCapacity(dynStr, newCapacity)) {
         return 0;
@@ -52,6 +55,15 @@ int appendDynCh(DynamicString * dynStr, const char newCh) {
 
     return 1;
 }
+
+void freeDynStr(DynamicString * dynStr) {
+    free(dynStr->str);
+    dynStr->str = NULL;
+    dynStr->capacity = 0;
+    dynStr->len = 0;
+}
+
+// internal
 
 static int ensureCapacity(DynamicString * dynStr, size_t neededCapacity) {
     if (dynStr->capacity > neededCapacity) {
@@ -74,11 +86,4 @@ static int ensureCapacity(DynamicString * dynStr, size_t neededCapacity) {
     dynStr->capacity = newCapacity;
 
     return 1;
-}
-
-void freeDynStr(DynamicString * dynStr) {
-    free(dynStr->str);
-    dynStr->str = NULL;
-    dynStr->capacity = 0;
-    dynStr->len = 0;
 }
