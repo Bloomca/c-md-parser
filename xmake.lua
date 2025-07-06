@@ -1,9 +1,21 @@
 add_rules("mode.debug", "mode.release")
+add_requires("cmocka")
+
+target("parserlib")
+    set_kind("static")
+    add_files("lib/*.c")
+    add_includedirs("include", { public = true})
 
 target("md-parser")
     set_kind("binary")
     add_files("src/*.c")
-    add_includedirs("include")
+    add_deps("parserlib")
+
+target("tests")
+    set_kind("binary")
+    add_files("tests/*.c")
+    add_deps("parserlib")
+    add_packages("cmocka")
 
 --
 -- If you want to known more usage about xmake, please see https://xmake.io
