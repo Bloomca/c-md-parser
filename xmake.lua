@@ -3,6 +3,7 @@ add_rules("mode.debug", "mode.release")
 target("md-parser")
     set_kind("binary")
     add_files("src/*.c")
+    add_includedirs("include")
 
 --
 -- If you want to known more usage about xmake, please see https://xmake.io
