@@ -59,10 +59,23 @@ static void test_correctHeaderWrapperTag(void **state) {
     teardownFile(fd, &dynStr);
 }
 
+static void test_correctMultilineSupport(void **state) {
+    (void) state; /* unused parameter */
+
+    FILE * fd = setupFile("# Description\nSome text\n\nAnother line");
+
+    DynamicString dynStr = parseMarkdown(fd);
+
+    assert_string_equal(dynStr.str, "<h1>Description</h1><p>Some text</p><p>Another line</p>");
+
+    teardownFile(fd, &dynStr);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_correctParagraphWrapperTag),
         cmocka_unit_test(test_correctHeaderWrapperTag),
+        cmocka_unit_test(test_correctMultilineSupport),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

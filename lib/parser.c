@@ -4,6 +4,7 @@
 typedef struct {
     int canParseHeader;
     int headerLevel;
+    int openedTag;
 } ParserState;
 
 static int isASCIICharacter(char ch);
@@ -11,6 +12,7 @@ static int isASCIICharacter(char ch);
 void resetParserLineState(ParserState * parserState) {
     parserState->canParseHeader = 1;
     parserState->headerLevel = 0;
+    parserState->openedTag = 0;
 }
 
 ParserState createParserState() {
@@ -28,6 +30,8 @@ void increaseHeaderLevel(ParserState * parserState) {
 }
 
 int prependOpeningTag(ParserState * parserState, DynamicString * resultDynStr) {
+    parserState->openedTag = 1;
+
     if (parserState->headerLevel == 0) {
         return appendDynStr(resultDynStr, "<p>", 3);
     }
@@ -61,6 +65,10 @@ int prependOpeningTag(ParserState * parserState, DynamicString * resultDynStr) {
 }
 
 int appendOpeningTag(ParserState * parserState, DynamicString * resultDynStr) {
+    if (parserState->openedTag == 0) {
+        return 1;
+    }
+
     if (parserState->headerLevel == 0) {
         return appendDynStr(resultDynStr, "</p>", 4);
     }
@@ -105,6 +113,12 @@ void parseLine(char * line, size_t len, ParserState * parserState, DynamicString
                     continue;
                 }
             }
+
+            // we ignore newlines for now
+            if (*line == '\n') {
+                line++;
+                continue;
+            }
         }
 
         if (parserState->canParseHeader) {
@@ -145,6 +159,7 @@ DynamicString parseMarkdown(FILE * file) {
 
     while ((nread = getline(&line, &len, file)) != -1) {
         parseLine(line, len, &parserState, &resultDynStr);
+        resetParserLineState(&parserState);
     }
 
     return resultDynStr;
