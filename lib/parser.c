@@ -13,6 +13,7 @@ typedef struct ParserState {
     int canParseHeader;
     int headerLevel;
     int openedTag;
+    char previousCharacter;
     Tag tag;
     DynamicString str;
     // subState is always a pointer on heap, you need to free it manually
@@ -94,6 +95,8 @@ void concludeSubState(ParserState *parserState, Tag tag) {
         appendDynStr(&parentState->str, "<i>", 3);
     } else if (tag == INLINE_CODE) {
         appendDynStr(&parentState->str, "<code>", 6);
+    } else if (tag == BOLD) {
+        appendDynStr(&parentState->str, "<strong>", 8);
     }
 
     appendDynStr(&parentState->str, parentState->subState->str.str, parentState->subState->str.len);
@@ -102,6 +105,8 @@ void concludeSubState(ParserState *parserState, Tag tag) {
         appendDynStr(&parentState->str, "</i>", 4);
     } else if (tag == INLINE_CODE) {
         appendDynStr(&parentState->str, "</code>", 7);
+    } else if (tag == BOLD) {
+        appendDynStr(&parentState->str, "</strong>", 9);
     }
 
     // cleanup
@@ -200,6 +205,7 @@ int appendOpeningTag(ParserState *parserState) {
 
 void parseLine(char *line, size_t len, ParserState *parserState, DynamicString *resultDynStr) {
     while (*line) {
+        ParserState *nestedState = getNestedState(parserState);
         int isASCII = isASCIICharacter(*line);
         if (isASCII) {
             if (*line == '#') {
@@ -211,8 +217,6 @@ void parseLine(char *line, size_t len, ParserState *parserState, DynamicString *
             }
 
             if (*line == '_') {
-                ParserState *nestedState = getNestedState(parserState);
-
                 if (nestedState->tag == ITALIC) {
                     concludeSubState(parserState, ITALIC);
                     line++;
@@ -225,14 +229,34 @@ void parseLine(char *line, size_t len, ParserState *parserState, DynamicString *
             }
 
             if (*line == '`') {
-                ParserState *nestedState = getNestedState(parserState);
-
                 if (nestedState->tag == INLINE_CODE) {
                     concludeSubState(parserState, INLINE_CODE);
                     line++;
                     continue;
                 } else {
                     createSubState(parserState, INLINE_CODE);
+                    line++;
+                    continue;
+                }
+            }
+
+            if (*line == '*') {
+                if (nestedState->previousCharacter == '*') {
+                    if (nestedState->tag == BOLD) {
+                        concludeSubState(parserState, BOLD);
+                        ParserState *newNestedState = getNestedState(parserState);
+                        newNestedState->previousCharacter = 'a';
+                        line++;
+                        continue;
+                    } else {
+                        createSubState(parserState, BOLD);
+                        // random character
+                        nestedState->previousCharacter = 'a';
+                        line++;
+                        continue;
+                    }
+                } else {
+                    nestedState->previousCharacter = '*';
                     line++;
                     continue;
                 }
@@ -263,10 +287,14 @@ void parseLine(char *line, size_t len, ParserState *parserState, DynamicString *
 
                 appendCharToParser(parserState, *line);
             }
+        } else if (nestedState->previousCharacter == '*') {
+            appendCharToParser(parserState, '*');
+            appendCharToParser(parserState, *line);
         } else {
             appendCharToParser(parserState, *line);
         }
 
+        nestedState->previousCharacter = *line;
         line++;
     }
 
