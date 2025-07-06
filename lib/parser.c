@@ -6,6 +6,7 @@ typedef enum {
     NONE,
     ITALIC,
     BOLD,
+    INLINE_CODE,
 } Tag;
 
 typedef struct ParserState {
@@ -91,12 +92,16 @@ void concludeSubState(ParserState *parserState, Tag tag) {
 
     if (tag == ITALIC) {
         appendDynStr(&parentState->str, "<i>", 3);
+    } else if (tag == INLINE_CODE) {
+        appendDynStr(&parentState->str, "<code>", 6);
     }
 
     appendDynStr(&parentState->str, parentState->subState->str.str, parentState->subState->str.len);
     
     if (tag == ITALIC) {
         appendDynStr(&parentState->str, "</i>", 4);
+    } else if (tag == INLINE_CODE) {
+        appendDynStr(&parentState->str, "</code>", 7);
     }
 
     // cleanup
@@ -213,10 +218,21 @@ void parseLine(char *line, size_t len, ParserState *parserState, DynamicString *
                     line++;
                     continue;
                 } else {
-                    // we need to create a substructure and save all characters inside it
-                    // the reason is that it might not be closed, so we can't add the tag
-                    // immediately
                     createSubState(parserState, ITALIC);
+                    line++;
+                    continue;
+                }
+            }
+
+            if (*line == '`') {
+                ParserState *nestedState = getNestedState(parserState);
+
+                if (nestedState->tag == INLINE_CODE) {
+                    concludeSubState(parserState, INLINE_CODE);
+                    line++;
+                    continue;
+                } else {
+                    createSubState(parserState, INLINE_CODE);
                     line++;
                     continue;
                 }

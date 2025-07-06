@@ -83,12 +83,25 @@ static void test_correctItalicSupport(void **state) {
     teardownFile(fd, &dynStr);
 }
 
+static void test_correctInlineCodeSupport(void **state) {
+    (void) state; /* unused parameter */
+
+    FILE * fd = setupFile("some text `with inline code` and _more_");
+
+    DynamicString dynStr = parseMarkdown(fd);
+
+    assert_string_equal(dynStr.str, "<p>some text <code>with inline code</code> and <i>more</i></p>");
+
+    teardownFile(fd, &dynStr);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_correctParagraphWrapperTag),
         cmocka_unit_test(test_correctHeaderWrapperTag),
         cmocka_unit_test(test_correctMultilineSupport),
         cmocka_unit_test(test_correctItalicSupport),
+        cmocka_unit_test(test_correctInlineCodeSupport),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);
