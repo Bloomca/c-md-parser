@@ -10,4 +10,5 @@ typedef struct {
 
 DynamicString createDynStr(const char * initialStr, size_t len);
 int appendDynStr(DynamicString * dynStr, const char * newStr, size_t len);
+int appendDynChar(DynamicString * dynStr, const char newCh);
 void freeDynStr(DynamicString * dynStr);

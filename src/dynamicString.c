@@ -40,6 +40,19 @@ int appendDynStr(DynamicString * dynStr, const char * newStr, size_t len) {
     return 1;
 }
 
+int appendDynCh(DynamicString * dynStr, const char newCh) {
+    int newCapacity = dynStr->len + 2;
+    if (!ensureCapacity(dynStr, newCapacity)) {
+        return 0;
+    }
+
+    dynStr->str[dynStr->len] = newCh;
+    dynStr->len++;
+    dynStr->str[dynStr->len] = '\0';
+
+    return 1;
+}
+
 static int ensureCapacity(DynamicString * dynStr, size_t neededCapacity) {
     if (dynStr->capacity > neededCapacity) {
         // we already have enough memory for new value
