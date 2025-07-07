@@ -5,6 +5,16 @@
 
 static int isASCIICharacter(char ch);
 
+static char EMPTY_CHARACTER = '\0';
+
+// call this function when the line is over and we need to reset it
+void wrapLine(ParserState *parserState, DynamicString *resultDynStr) {
+    appendDynStr(resultDynStr, parserState->str.str, parserState->str.len);
+
+    resetParserStr(parserState);
+    resetParserLineState(parserState);
+}
+
 int prependOpeningTag(ParserState *parserState) {
     parserState->openedTag = 1;
 
@@ -77,8 +87,19 @@ int appendOpeningTag(ParserState *parserState) {
     return 0;
 }
 
-
 void parseLine(char *line, size_t len, ParserState *parserState, DynamicString *resultDynStr) {
+    // if we are not on the first line, we need to handle the line break
+    // if the line is only a newline character, we need to close the tag
+    if (parserState->firstLine == 0) {
+        if (len == 1 && *line == '\n') {
+            appendOpeningTag(parserState);
+            wrapLine(parserState, resultDynStr);
+            return;
+        } else {
+            appendStringToParser(parserState, "<br />", 6);
+        }
+    }
+
     while (*line) {
         ParserState *nestedState = getNestedState(parserState);
         int isASCII = isASCIICharacter(*line);
@@ -120,13 +141,12 @@ void parseLine(char *line, size_t len, ParserState *parserState, DynamicString *
                     if (nestedState->tag == BOLD) {
                         concludeSubState(parserState, BOLD);
                         ParserState *newNestedState = getNestedState(parserState);
-                        newNestedState->previousCharacter = 'a';
+                        newNestedState->previousCharacter = EMPTY_CHARACTER;
                         line++;
                         continue;
                     } else {
                         createSubState(parserState, BOLD);
-                        // random character
-                        nestedState->previousCharacter = 'a';
+                        nestedState->previousCharacter = EMPTY_CHARACTER;
                         line++;
                         continue;
                     }
@@ -137,8 +157,8 @@ void parseLine(char *line, size_t len, ParserState *parserState, DynamicString *
                 }
             }
 
-            // we ignore newlines for now
             if (*line == '\n') {
+                nestedState->previousCharacter = '\n';
                 line++;
                 continue;
             }
@@ -173,7 +193,14 @@ void parseLine(char *line, size_t len, ParserState *parserState, DynamicString *
         line++;
     }
 
-    appendOpeningTag(parserState);
+    // every line break wraps the header tag, but not
+    // the paragraph one.
+    if (parserState->headerLevel != 0) {
+        appendOpeningTag(parserState);
+        wrapLine(parserState, resultDynStr);
+    } else {
+        parserState->firstLine = 0;
+    }
 }
 
 DynamicString parseMarkdown(FILE *file) {
@@ -186,13 +213,11 @@ DynamicString parseMarkdown(FILE *file) {
     DynamicString resultDynStr = createDynStr("", 0);
 
     while ((nread = getline(&line, &len, file)) != -1) {
-        parseLine(line, len, &parserState, &resultDynStr);
-
-        appendDynStr(&resultDynStr, parserState.str.str, parserState.str.len);
-
-        resetParserStr(&parserState);
-        resetParserLineState(&parserState);
+        parseLine(line, nread, &parserState, &resultDynStr);
     }
+
+    appendOpeningTag(&parserState);
+    wrapLine(&parserState, &resultDynStr);
 
     return resultDynStr;
 }
