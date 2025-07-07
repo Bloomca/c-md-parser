@@ -13,6 +13,7 @@ typedef struct ParserState {
     int canParseHeader;
     int headerLevel;
     int openedTag;
+    int firstLine;
     char previousCharacter;
     Tag tag;
     DynamicString str;

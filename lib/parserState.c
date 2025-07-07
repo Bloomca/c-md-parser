@@ -5,6 +5,7 @@ void resetParserLineState(ParserState *parserState) {
     parserState->canParseHeader = 1;
     parserState->headerLevel = 0;
     parserState->openedTag = 0;
+    parserState->firstLine = 1;
 }
 
 void resetParserStr(ParserState *parserState) {
